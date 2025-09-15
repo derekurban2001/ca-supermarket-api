@@ -35,12 +35,12 @@ Technical approach (per research): integrate with Real Canadian Superstore upstr
 **Language/Version**: Node.js 18 (TypeScript preferred)  
 **Primary Dependencies**: None initially (standard `fetch` and AbortController)  
 **Storage**: N/A  
-**Testing**: [NEEDS CLARIFICATION: jest vs vitest and coverage goals]  
+**Testing**: Jest (ts-jest) with 100% line and branch coverage enforced; contract/integration suites call the live API and require `SUPERSTORE_API_KEY`
 **Target Platform**: Node 18 (library)  
 **Project Type**: single  
-**Performance Goals**: [NEEDS CLARIFICATION: target p95 for search and details]  
-**Constraints**: Unofficial upstream subject to change; credentials must be provided by integrator; prices in CAD; no built-in retry/backoff in v1  
-**Scale/Scope**: [NEEDS CLARIFICATION]
+**Performance Goals**: No explicit latency requirements (best-effort within upstream limits)
+**Constraints**: Unofficial upstream subject to change (including header names); credentials must be provided by integrator; prices in CAD and exclude tax; no built-in retry/backoff in v1
+**Scale/Scope**: Library consumed by downstream services needing chain-wide coverage; expected call volume aligns with typical application traffic (no special scaling commitments)
 
 ## Constitution Check
 
@@ -169,19 +169,21 @@ Fill ONLY if Constitution Check has violations that must be justified
 | Violation | Why Needed | Simpler Alternative Rejected Because |
 | --- | --- | --- |
 
+No deviations required; architecture remains within constitution guardrails.
+
 ## Progress Tracking
 
 Phase Status:
-- [ ] Phase 0: Research complete (/plan command)
-- [ ] Phase 1: Design complete (/plan command)
-- [ ] Phase 2: Task planning complete (/plan command - describe approach only)
-- [ ] Phase 3: Tasks generated (/tasks command)
+- [x] Phase 0: Research complete (/plan command)
+- [x] Phase 1: Design complete (/plan command)
+- [x] Phase 2: Task planning complete (/plan command - describe approach only)
+- [x] Phase 3: Tasks generated (/tasks command)
 - [ ] Phase 4: Implementation complete
 - [ ] Phase 5: Validation passed
 
 Gate Status:
-- [ ] Initial Constitution Check: PASS
-- [ ] Post-Design Constitution Check: PASS
-- [ ] All NEEDS CLARIFICATION resolved
-- [ ] Complexity deviations documented
+- [x] Initial Constitution Check: PASS
+- [x] Post-Design Constitution Check: PASS
+- [x] All NEEDS CLARIFICATION resolved
+- [x] Complexity deviations documented
 

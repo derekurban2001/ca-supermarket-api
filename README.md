@@ -16,22 +16,29 @@ npm run lint
 npm run format
 ```
 
+## Environment
+
+Set `SUPERSTORE_API_KEY` before running the library or its tests. The contract and integration suites call the live Real Canadian Superstore API—no fake datasources or offline fallbacks exist. Missing or invalid credentials cause the client factory to throw and the tests to fail immediately.
+
 ## Usage
 
 ```ts
-import { createRepository } from './src/index';
+import { createClient } from './src/index';
 
-const repo = createRepository({ superstore: { apiKey: process.env.SUPERSTORE_API_KEY } });
+const client = createClient({ superstore: { apiKey: process.env.SUPERSTORE_API_KEY } });
 
-const stores = await repo.listStores();
-const search = await repo.searchProducts('milk', '1234', 1, 10);
-const details = await repo.getProductDetails('21053436_EA', '1234');
+const stores = await client.listStores();
+const search = await client.searchProducts('milk', '1234', 1, 10);
+const details = await client.getProductDetails('21053436_EA', '1234');
 ```
 
+`createRepository` remains exported if you prefer to work directly with the repository port.
+
 ## Notes
-- Prices are in CAD. All pricing fields provided upstream should be returned.
+- Prices are in CAD and exclude tax. All pricing fields provided upstream should be returned.
 - No retry/backoff in v1. Errors carry types and messages. Handle 401/403/429 appropriately in your app.
 - Credentials must be supplied by callers once the datasource is wired.
+- Contract and integration tests hit the live API; set `SUPERSTORE_API_KEY` and be mindful of upstream rate limits when running the suite.
 
 ## Superstore Search Requirements (confirmed)
 

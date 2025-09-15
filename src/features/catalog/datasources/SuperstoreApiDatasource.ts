@@ -3,6 +3,15 @@ import type { ProductDTO } from '../dtos/ProductDTO';
 import type { StoreDTO } from '../dtos/StoreDTO';
 import { randomUUID } from 'node:crypto';
 
+export class MissingApiKeyError extends Error {
+  constructor() {
+    super(
+      'Superstore API key is required. Set SUPERSTORE_API_KEY in the environment or provide superstore.apiKey when creating the client.'
+    );
+    this.name = 'MissingApiKeyError';
+  }
+}
+
 /**
  * Superstore Product Search: confirmed requirements (from live probing)
  *
@@ -66,8 +75,12 @@ export class SuperstoreApiDatasource {
     this.timeoutMs = config.timeoutMs ?? 10000;
   }
 
-  private requireKey(): string | undefined {
-    return this.config.apiKey;
+  private requireKey(): string {
+    const key = this.config.apiKey ?? process.env.SUPERSTORE_API_KEY;
+    if (!key || key.trim().length === 0) {
+      throw new MissingApiKeyError();
+    }
+    return key;
   }
 
   private async request<T>(path: string, opts: HttpOptions = {}): Promise<{ data: T; status: number }> {
@@ -108,10 +121,6 @@ export class SuperstoreApiDatasource {
 
   async listStores(): Promise<StoreDTO[]> {
     const apiKey = this.requireKey();
-    if (!apiKey) {
-      // No key provided; return empty list per v1 placeholder behavior
-      return [];
-    }
     try {
       const { data } = await this.request<any>(`/api/v1/pickup-locations?bannerIds=${this.banner}`, {
         method: 'GET',
@@ -147,9 +156,6 @@ export class SuperstoreApiDatasource {
    */
   async searchProducts(req: SearchRequestDTO): Promise<ProductDTO[]> {
     const apiKey = this.requireKey();
-    if (!apiKey) {
-      return [];
-    }
     const today = this.ddmmyyyy(new Date());
     const cartId = randomUUID();
     const from = 1 + Math.max(0, (req.page - 1) * Math.max(1, req.pageSize));
@@ -196,7 +202,6 @@ export class SuperstoreApiDatasource {
 
   async getProductDetails(productId: string, storeId: string): Promise<ProductDTO | null> {
     const apiKey = this.requireKey();
-    if (!apiKey) return null;
     const date = this.ddmmyyyy(new Date());
     const qs = new URLSearchParams({
       lang: 'en',

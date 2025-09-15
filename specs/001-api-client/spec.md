@@ -2,7 +2,7 @@
 
 **Feature Branch**: `001-api-client`  
 **Created**: 2025-09-15  
-**Status**: Draft  
+**Status**: Approved
 **Input**: User description: "Create a new branch called 001-api-client that will set up the CanadianSupermarketApi client which will expose functions to search the supermarket for a listing of products, search supermarkets for specific stores at specific locations, and to get product details based on a given id from a specific store."
 
 ## User Scenarios & Testing (mandatory)
@@ -56,6 +56,7 @@ As an application developer, I need a client that lets me search products (by te
 - Source supermarket: Real Canadian Superstore only for this iteration; future supermarkets may be added without breaking existing contracts.
 - Access method: Upstream endpoints are unofficial/reverse‑engineered; behavior may change without notice. Credentials/keys must be supplied by the integrator; the system will not embed or procure them.
 - Currency: All prices are represented in CAD.
+- Pricing: Displayed prices exclude tax; downstream consumers are responsible for handling tax calculations.
 - Availability: Product availability is store‑scoped; a product may exist chain‑wide but not be available at a given store. Availability fields are passed through when present from upstream.
 - Images: Provide a primary image when available; no specific resolution requirement in v1.
 
@@ -67,18 +68,18 @@ GATE: Automated checks run during main() execution
 
 ### Content Quality
 
-- [ ] No implementation details (languages, frameworks, APIs)
-- [ ] Focused on user value and business needs
-- [ ] Written for non-technical stakeholders
-- [ ] All mandatory sections completed
+- [x] No implementation details (languages, frameworks, APIs)
+- [x] Focused on user value and business needs
+- [x] Written for non-technical stakeholders
+- [x] All mandatory sections completed
 
 ### Requirement Completeness
 
-- [ ] No [NEEDS CLARIFICATION] markers remain
-- [ ] Requirements are testable and unambiguous
-- [ ] Success criteria are measurable
-- [ ] Scope is clearly bounded
-- [ ] Dependencies and assumptions identified
+- [x] No [NEEDS CLARIFICATION] markers remain
+- [x] Requirements are testable and unambiguous
+- [x] Success criteria are measurable
+- [x] Scope is clearly bounded
+- [x] Dependencies and assumptions identified
 
 ---
 
@@ -86,13 +87,13 @@ GATE: Automated checks run during main() execution
 
 Updated by main() during processing
 
-- [ ] User description parsed
-- [ ] Key concepts extracted
-- [ ] Ambiguities marked
-- [ ] User scenarios defined
-- [ ] Requirements generated
-- [ ] Entities identified
-- [ ] Review checklist passed
+- [x] User description parsed
+- [x] Key concepts extracted
+- [x] Ambiguities marked
+- [x] User scenarios defined
+- [x] Requirements generated
+- [x] Entities identified
+- [x] Review checklist passed
 
 ---
 

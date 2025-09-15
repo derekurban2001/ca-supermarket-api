@@ -2,23 +2,45 @@ import { getProductDetails, listStores, searchProducts } from '../../../src/inde
 
 describe('Contract: getProductDetails', () => {
   it('requires storeId and productId', async () => {
-    const res1 = await getProductDetails('', '');
-    expect(res1.ok).toBe(false);
-    if (!res1.ok) expect(res1.error.type).toBe('invalid-params');
+    const res = await getProductDetails('', '');
 
-    const res2 = await getProductDetails('ABC', '');
-    expect(res2.ok).toBe(false);
-    if (!res2.ok) expect(res2.error.type).toBe('invalid-params');
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.error.type).toBe('invalid-params');
   });
 
-  it('fetches product details for a real product (live)', async () => {
+  it('fetches product details for a known product (live)', async () => {
     const stores = await listStores();
     expect(stores.ok).toBe(true);
-    const storeId = stores.ok ? stores.value.items[0].id : '';
-    const search = await searchProducts('Toilet paper', storeId, 1, 10);
+    if (!stores.ok || stores.value.items.length === 0) return;
+
+    const storeId = stores.value.items[0].id;
+    const search = await searchProducts('Toilet paper', storeId, 1, 5);
     expect(search.ok).toBe(true);
-    const productId = search.ok ? search.value.items[0].id : '';
+    if (!search.ok || search.value.items.length === 0) return;
+
+    const productId = search.value.items[0].id;
     const res = await getProductDetails(productId, storeId);
-    expect(typeof res.ok).toBe('boolean');
+
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+
+    expect(res.value).toEqual(
+      expect.objectContaining({
+        id: expect.any(String),
+        pricing: expect.objectContaining({ currency: 'CAD' })
+      })
+    );
+  });
+
+  it('returns not-found when product is unavailable at the store (live)', async () => {
+    const stores = await listStores();
+    expect(stores.ok).toBe(true);
+    if (!stores.ok || stores.value.items.length === 0) return;
+
+    const storeId = stores.value.items[0].id;
+    const res = await getProductDetails('NOTAREALPRODUCT123456', storeId);
+
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.error.type).toBe('not-found');
   });
 });

@@ -6,6 +6,7 @@ This guide outlines minimal end-to-end validation steps for the library once imp
 - Node.js 18+
 - A valid API key for the upstream endpoints (user-provided)
 - A known store id for Real Canadian Superstore (e.g., from store search)
+- Environment variable `SUPERSTORE_API_KEY` set before running tests or validation scripts (tests call the live API directly)
 
 ## Steps
 - Configure the client with your API key.
@@ -24,5 +25,6 @@ This guide outlines minimal end-to-end validation steps for the library once imp
   - Invalid pagination (missing/invalid page or pageSize) → validation error with guidance
 
 ## Notes
-- Prices are in CAD; confirm whether taxes are included/excluded.
+- Prices are in CAD and exclude tax; ensure downstream pricing displays account for tax separately.
 - Availability and pricing are store-scoped and may change.
+- There is no fake datasource for validation—contract and integration suites exercise the live Superstore API and will fail immediately if `SUPERSTORE_API_KEY` is missing or invalid.
