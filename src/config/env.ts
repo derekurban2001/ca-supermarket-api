@@ -11,6 +11,8 @@ export type ClientConfig = {
 /**
  * Parse a number from an environment variable value.
  * Returns undefined when the value is not a finite number.
+ * @param value Environment value to parse (string/number-like).
+ * @returns Parsed finite number or undefined when not a valid number.
  */
 const parseNumber = (value: unknown): number | undefined => {
   if (value === undefined || value === null) return undefined;
@@ -29,6 +31,8 @@ const parseNumber = (value: unknown): number | undefined => {
  *
  * Note: This function does not throw on missing API key. Enforcement occurs
  * in the container/datasource so unit tests can run without credentials.
+ * @param env Process environment (defaults to process.env).
+ * @returns Parsed typed configuration object for the client.
  */
 export const loadEnvConfig = (env: NodeJS.ProcessEnv = process.env): ClientConfig => {
   const banner = (env.SUPERSTORE_BANNER?.toLowerCase() as 'superstore' | undefined) ?? 'superstore';
@@ -45,6 +49,8 @@ export const loadEnvConfig = (env: NodeJS.ProcessEnv = process.env): ClientConfi
 
 /**
  * Convenience accessor returning only the Superstore config block.
+ * @param env Process environment (defaults to process.env).
+ * @returns SuperstoreConfig section from the loaded config.
  */
 export const loadSuperstoreConfig = (env: NodeJS.ProcessEnv = process.env): SuperstoreConfig =>
   loadEnvConfig(env).superstore;

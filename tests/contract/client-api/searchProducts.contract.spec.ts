@@ -1,4 +1,5 @@
 import { createClient, listStores, searchProducts } from '../../../src/index';
+import type { SupermarketRepository } from '@core/ports/SupermarketRepository';
 
 describe('Contract: searchProducts', () => {
   it('requires storeId and user-specified pagination', async () => {
@@ -43,7 +44,7 @@ describe('Contract: searchProducts', () => {
   });
 
   it('returns stable ordering for identical inputs (mock repository)', async () => {
-    const repo = {
+    const repo: SupermarketRepository = {
       async searchProducts() {
         return {
           ok: true as const,
@@ -81,7 +82,7 @@ describe('Contract: searchProducts', () => {
       }
     };
 
-    const client = createClient({ repository: repo as any });
+    const client = createClient({ repository: repo });
     const first = await client.searchProducts('milk', '1234', 1, 10);
     const second = await client.searchProducts('milk', '1234', 1, 10);
 

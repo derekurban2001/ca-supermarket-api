@@ -16,6 +16,9 @@ export type ClientDeps = {
  * - `SUPERSTORE_API_KEY` (required for live calls)
  * - `SUPERSTORE_BASE_URL` (optional)
  * - `SUPERSTORE_TIMEOUT_MS` (optional)
+ * @param deps Optional dependency overrides, including a pre-built repository or
+ *             Superstore datasource configuration values.
+ * @returns A repository that implements the supermarket port.
  */
 export const createRepository = (deps: ClientDeps = {}): SupermarketRepository => {
   if (deps.repository) return deps.repository;
