@@ -52,17 +52,24 @@ _GATE: Must pass before Phase 0 research. Re-check after Phase 1 design._
 
 **Simplicity**:
 
-- Projects: [#] (max 3 - e.g., api, cli, tests)
+ - Projects: [#] (max 3 - src/core, src/features, src/config)
 - Using framework directly? (no wrapper classes)
-- Single data model? (no DTOs unless serialization differs)
-- Avoiding patterns? (no Repository/UoW without proven need)
+ - Entities vs DTOs separation present? (map at boundaries)
+ - CLEAN layering affirmed? (use-case → repository → datasource)
 
 **Architecture**:
 
-- EVERY feature as library? (no direct app code)
-- Libraries listed: [name + purpose for each]
-- CLI per library: [commands with --help/--version/--format]
-- Library docs: llms.txt format planned?
+ - Vertical slices under `src/features/` per capability
+ - Repositories define domain ports; datasources implement adapters
+ - Shared domain in `src/core/` (entities, errors, types, mappers)
+ - Configuration in `src/config/` (env, DI, providers)
+
+**Packaging & Tooling**:
+
+- `package.json` is private ("private": true)
+- ESM exports map defined for public API
+- `tsconfig` path aliases set (@core/*, @features/*, @config/*)
+- ESLint rules enforce naming; JSDoc plugin enabled for exported APIs
 
 **Testing (NON-NEGOTIABLE)**:
 
@@ -78,12 +85,13 @@ _GATE: Must pass before Phase 0 research. Re-check after Phase 1 design._
 - Structured logging included?
 - Frontend logs → backend? (unified stream)
 - Error context sufficient?
+ - Logger design accounted for? (singleton with static methods and configure())
 
 **Versioning**:
 
-- Version number assigned? (MAJOR.MINOR.BUILD)
-- BUILD increments on every change?
-- Breaking changes handled? (parallel tests, migration plan)
+ - SemVer set in `package.json` (0.x.y until stable)
+ - Changelog updated for notable changes
+ - Breaking changes documented with migration notes
 
 ## Project Structure
 
@@ -100,6 +108,18 @@ specs/[###-feature]/
 ```
 
 ### Source Code (repository root)
+
+Note: For this repository, Option 1 uses TypeScript with CLEAN vertical slices and the following structure:
+
+```
+src/
+  features/
+  core/
+  config/
+
+tests/
+  unit/
+```
 
 ```
 # Option 1: Single project (DEFAULT)
@@ -206,7 +226,7 @@ _This section describes what the /tasks command will do - DO NOT execute during 
 
 **Task Generation Strategy**:
 
-- Load `/templates/tasks-template.md` as base
+- Load `/.codex/templates/tasks-template.md` as base
 - Generate tasks from Phase 1 design docs (contracts, data model, quickstart)
 - Each contract → contract test task [P]
 - Each entity → model creation task [P]
@@ -262,4 +282,4 @@ _This checklist is updated during execution flow_
 
 ---
 
-_Based on Constitution v2.1.1 - See `/memory/constitution.md`_
+_Based on Constitution v0.1.2 - See `/memory/constitution.md`_
