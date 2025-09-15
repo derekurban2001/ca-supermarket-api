@@ -22,6 +22,23 @@ This document captures decisions and unknowns informing the plan and contracts f
 - Caching & freshness (library concern): Allow consumers to configure caching; recommended defaults may be provided in implementation. Freshness expectations in spec remain business-level.
 - Logging & observability (library concern): Provide structured logging without exposing sensitive headers.
 
+## Confirmed Search Requirements
+
+- Headers (required):
+  - `x-apikey` (caller-provided)
+  - `x-application-type: Web` (literal)
+  - `x-loblaw-tenant-id: ONLINE_GROCERIES` (literal)
+  - `accept-language: en` (literal; `fr` also accepted; `en-CA` rejected)
+- Headers (optional): `origin`, `referer`, `sec-*`, `user-agent`, `x-channel`, `x-preview`
+- Payload (required):
+  - `banner: "superstore"` (literal)
+  - `cart.cartId` (random UUID)
+  - `fulfillmentInfo.storeId` (provided)
+  - `fulfillmentInfo.offerType: "OG"` (literal)
+  - `searchRelatedInfo.term` (provided)
+- Payload (optional): `fulfillmentInfo.date`, `pickupType`, `timeSlot`, `listingInfo.*`, `userData`, `device`, `searchRelatedInfo.options`
+- Constraints: if including pagination, `pagination.from >= 1`; `offerType` must be `OG`.
+
 ## Open Questions
 
 - API key rotation and header name variability (is `X-Apikey` stable?): [NEEDS CLARIFICATION]
