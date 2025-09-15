@@ -1,4 +1,4 @@
-import { listStores, searchProducts } from '../../../src/index';
+import { createClient, listStores, searchProducts } from '../../../src/index';
 
 describe('Contract: searchProducts', () => {
   it('requires storeId and user-specified pagination', async () => {
@@ -39,6 +39,56 @@ describe('Contract: searchProducts', () => {
           })
         })
       );
+    }
+  });
+
+  it('returns stable ordering for identical inputs (mock repository)', async () => {
+    const repo = {
+      async searchProducts() {
+        return {
+          ok: true as const,
+          value: {
+            items: [
+              { id: 'B', name: 'B', brand: null, imageUrl: null, packageSize: null, price: { current: 2, currency: 'CAD' as const } },
+              { id: 'A', name: 'A', brand: null, imageUrl: null, packageSize: null, price: { current: 1, currency: 'CAD' as const } }
+            ],
+            page: 1,
+            pageSize: 10,
+            total: 2
+          }
+        };
+      },
+      async listStores() {
+        return { ok: true as const, value: { items: [] } };
+      },
+      async getProductDetails() {
+        return {
+          ok: true as const,
+          value: {
+            id: 'X',
+            name: 'X',
+            brand: null,
+            description: null,
+            imageUrl: null,
+            packageSize: null,
+            uom: null,
+            pricing: { current: 0, regular: null, currency: 'CAD' as const },
+            nutrition: null,
+            breadcrumbs: [],
+            variants: null
+          }
+        };
+      }
+    };
+
+    const client = createClient({ repository: repo as any });
+    const first = await client.searchProducts('milk', '1234', 1, 10);
+    const second = await client.searchProducts('milk', '1234', 1, 10);
+
+    expect(first.ok).toBe(true);
+    expect(second.ok).toBe(true);
+    if (first.ok && second.ok) {
+      expect(first.value.items).toEqual(second.value.items);
     }
   });
 });

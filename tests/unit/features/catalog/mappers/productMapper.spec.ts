@@ -15,7 +15,17 @@ describe('productMapper', () => {
       regular: 1499,
       unitPrice: { value: 216, unit: '100 sheets', perQuantity: 1 }
     },
-    nutrition: { calories: '10' },
+    nutrition: {
+      calories: '10',
+      servingSize: '1 roll',
+      fat: '0g',
+      carbs: '0g',
+      protein: '0g',
+      micros: { vitaminA: '0%' },
+      sub: { fiber: '0g' },
+      ingredients: 'Paper',
+      disclaimer: 'Approximate values'
+    },
     breadcrumbs: [{ code: 'household', name: 'Household' }],
     variants: [{ code: 'ALT', name: 'Alternative' }]
   };
@@ -50,7 +60,21 @@ describe('productMapper', () => {
         currency: 'CAD',
         unitPrice: { value: 216, unit: '100 sheets', perQuantity: 1 }
       },
-      nutrition: { calories: '10' },
+      nutrition: {
+        serving: '1 roll',
+        calories: '10',
+        macros: {
+          fat: '0g',
+          carbs: '0g',
+          protein: '0g',
+          sub: { fiber: '0g' }
+        },
+        micros: { vitaminA: '0%' },
+        sodium: null,
+        cholesterol: null,
+        disclaimer: 'Approximate values',
+        ingredients: 'Paper'
+      },
       breadcrumbs: [{ code: 'household', name: 'Household' }],
       variants: [{ id: 'ALT', name: 'Alternative' }]
     });

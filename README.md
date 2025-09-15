@@ -18,18 +18,30 @@ npm run format
 
 ## Environment
 
-Set `SUPERSTORE_API_KEY` before running the library or its tests. The contract and integration suites call the live Real Canadian Superstore API—no fake datasources or offline fallbacks exist. Missing or invalid credentials cause the client factory to throw and the tests to fail immediately.
+Set `SUPERSTORE_API_KEY` before running the library or its tests. The contract and integration suites call the live Real Canadian Superstore API—no fake datasources or offline fallbacks exist. missing.r invalid credentials return an unauthorized error via the Result type; tests require the key and will fail fast if it is missing.
+
+Optional overrides:
+- `SUPERSTORE_BASE_URL`
+- `SUPERSTORE_BANNER` (defaults to `superstore`)
+- `SUPERSTORE_TIMEOUT_MS` (ms, defaults to `10000`)
+
+You can also load a typed config via `loadEnvConfig()` from `src/config/env.ts`.
 
 ## Usage
 
 ```ts
-import { createClient } from './src/index';
+import { createClient, listStores, searchProducts, getProductDetails } from './src/index';
+import { loadEnvConfig } from './src/config/env';
 
-const client = createClient({ superstore: { apiKey: process.env.SUPERSTORE_API_KEY } });
+// Option A: Functional API (uses env when not overridden)
+const stores = await listStores();
+const search = await searchProducts('milk', '1234', 1, 10);
+const details = await getProductDetails('21053436_EA', '1234');
 
-const stores = await client.listStores();
-const search = await client.searchProducts('milk', '1234', 1, 10);
-const details = await client.getProductDetails('21053436_EA', '1234');
+// Option B: Explicit client with programmatic config
+const { superstore } = loadEnvConfig();
+const client = createClient({ superstore: { ...superstore, apiKey: process.env.SUPERSTORE_API_KEY } });
+await client.listStores();
 ```
 
 `createRepository` remains exported if you prefer to work directly with the repository port.
@@ -67,3 +79,6 @@ Constraints
 - `pagination.from` must be >= 1 (server enforces combined bounds)
 - `offerType` must be `OG`
 - `accept-language` must be a simple language code (`en`/`fr`)
+
+
+

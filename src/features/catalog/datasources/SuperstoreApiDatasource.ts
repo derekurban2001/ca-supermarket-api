@@ -3,43 +3,45 @@ import type { ProductDTO } from '../dtos/ProductDTO';
 import type { StoreDTO } from '../dtos/StoreDTO';
 import { randomUUID } from 'node:crypto';
 
-export class MissingApiKeyError extends Error {
-  constructor() {
-    super(
+/**
+ * Error thrown when the upstream API rejects authentication.
+ */
+export class SuperstoreAuthError extends Error {
+  /**
+   * @param code Category of authentication failure.
+   * @param message Description used for the thrown error.
+   */
+  constructor(public readonly code: 'missing-key' | 'invalid-key', message: string) {
+    super(message);
+    this.name = 'SuperstoreAuthError';
+  }
+
+  /**
+   * Build an error representing missing credentials.
+   * @returns Instance tagged with missing-key.
+   */
+  static missing(): SuperstoreAuthError {
+    return new SuperstoreAuthError(
+      'missing-key',
       'Superstore API key is required. Set SUPERSTORE_API_KEY in the environment or provide superstore.apiKey when creating the client.'
     );
-    this.name = 'MissingApiKeyError';
   }
-}
 
-/**
- * Superstore Product Search: confirmed requirements (from live probing)
- *
- * Required headers (values enforced as literals):
- * - x-apikey: caller-provided key (loaded from env/config)
- * - x-application-type: 'Web'
- * - x-loblaw-tenant-id: 'ONLINE_GROCERIES'
- * - accept-language: 'en' (note: 'fr' also works, 'en-CA' fails)
- *
- * Optional headers (omitted by default): origin, referer, sec-*, user-agent, x-channel, x-preview
- *
- * Required payload fields:
- * - banner: 'superstore'
- * - cart.cartId: random UUID per request
- * - fulfillmentInfo.storeId: provided by caller
- * - fulfillmentInfo.offerType: 'OG' (PICKUP/HD rejected)
- * - searchRelatedInfo.term: provided by caller
- *
- * Optional payload fields (omitted or ignored): userData, device, listingInfo (filters/sort/includeFiltersInResponse/pagination)
- * Constraints: if pagination is sent, pagination.from must be >= 1; date optional.
- */
-
-// Header literal constants per confirmed requirements
-const HDR_APPLICATION_TYPE = 'Web';
+  /**
+   * Build an error representing rejected credentials.
+   * @param status HTTP status returned by the upstream API.
+   * @returns Instance tagged with invalid-key.
+   */
+  static invalid(status: number): SuperstoreAuthError {
+    return new SuperstoreAuthError(
+      'invalid-key',
+      `Superstore API responded with status ${status}. Verify SUPERSTORE_API_KEY is present and valid.`
+    );
+  }
+}const HDR_APPLICATION_TYPE = 'Web';
 const HDR_TENANT_ID = 'ONLINE_GROCERIES';
 const HDR_ACCEPT_LANGUAGE = 'en';
 
-// Minimal payload shape used for search requests
 type SuperstoreSearchPayload = {
   cart: { cartId: string };
   fulfillmentInfo: {
@@ -49,7 +51,6 @@ type SuperstoreSearchPayload = {
     date?: string;
     timeSlot?: null;
   };
-  // listingInfo is optional; when included, only pagination.from is required to control paging
   listingInfo?: { pagination?: { from: number } };
   banner: 'superstore';
   searchRelatedInfo: { term: string };
@@ -57,39 +58,129 @@ type SuperstoreSearchPayload = {
 
 export type SuperstoreConfig = {
   apiKey?: string;
-  baseUrl?: string; // Defaults to https://api.pcexpress.ca/pcx-bff
+  baseUrl?: string;
   banner?: 'superstore';
-  timeoutMs?: number; // request timeout
+  timeoutMs?: number;
 };
 
-type HttpOptions = { method?: 'GET' | 'POST'; headers?: Record<string, string>; body?: unknown; timeoutMs?: number };
+type HttpOptions = {
+  method?: 'GET' | 'POST';
+  headers?: Record<string, string>;
+  body?: unknown;
+  timeoutMs?: number;
+};
 
+interface HttpError extends Error {
+  status?: number;
+  body?: unknown;
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const toOptionalString = (value: unknown): string | null => {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number') return String(value);
+  return null;
+};
+
+const toOptionalNumber = (value: unknown): number | null => {
+  const asString = toOptionalString(value);
+  if (asString === null) return null;
+  const parsed = Number(asString);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const toBooleanOrNull = (value: unknown): boolean | null => (typeof value === 'boolean' ? value : null);
+
+const toRecordArray = (value: unknown): Record<string, unknown>[] => {
+  if (Array.isArray(value)) {
+    return value.filter(isRecord);
+  }
+  if (isRecord(value) && Array.isArray(value.items)) {
+    return value.items.filter(isRecord);
+  }
+  return [];
+};
+
+const coerceVariants = (value: unknown): Array<{ code: string; name?: string }> | null => {
+  if (!Array.isArray(value) || value.length === 0) return null;
+  const variants = value
+    .map(item => {
+      if (!isRecord(item)) return null;
+      const code = toOptionalString(item.code);
+      if (!code) return null;
+      const name = toOptionalString(item.name) ?? undefined;
+      const result: { code: string; name?: string } = name !== undefined ? { code, name } : { code };
+      return result;
+    })
+    .filter((entry): entry is { code: string; name?: string } => entry !== null);
+  return variants.length ? variants : null;
+};
+
+const coerceBreadcrumbs = (value: unknown): Array<{ code: string; name: string }> => {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map(item => {
+      if (!isRecord(item)) return null;
+      const code = toOptionalString(item.code);
+      const name = toOptionalString(item.name);
+      if (!code || !name) return null;
+      return { code, name };
+    })
+    .filter((entry): entry is { code: string; name: string } => entry !== null);
+};
+
+const toGeo = (value: unknown): { lat: number; lon: number } | null => {
+  if (!isRecord(value)) return null;
+  const lat = toOptionalNumber(value.latitude ?? value.lat);
+  const lon = toOptionalNumber(value.longitude ?? value.lon);
+  if (lat === null || lon === null) return null;
+  return { lat, lon };
+};
+
+/**
+ * Datasource responsible for calling the live Superstore endpoints.
+ */
 export class SuperstoreApiDatasource {
   private baseUrl: string;
   private banner: 'superstore';
   private timeoutMs: number;
 
+  /**
+   * @param config Optional datasource configuration overrides.
+   */
   constructor(private readonly config: SuperstoreConfig = {}) {
     this.baseUrl = config.baseUrl ?? 'https://api.pcexpress.ca/pcx-bff';
     this.banner = config.banner ?? 'superstore';
     this.timeoutMs = config.timeoutMs ?? 10000;
   }
 
+  /**
+   * Read the API key from configuration or environment and enforce presence.
+   * @throws {SuperstoreAuthError} When the API key is missing or blank.
+   * @returns Non-empty API key string.
+   */
   private requireKey(): string {
     const key = this.config.apiKey ?? process.env.SUPERSTORE_API_KEY;
     if (!key || key.trim().length === 0) {
-      throw new MissingApiKeyError();
+      throw SuperstoreAuthError.missing();
     }
     return key;
   }
 
+  /**
+   * Perform an HTTP request with Superstore defaults and JSON handling.
+   * @param path Relative or absolute request path.
+   * @param opts Method, headers, body and timeout overrides.
+   * @returns Parsed JSON body and HTTP status code.
+   */
   private async request<T>(path: string, opts: HttpOptions = {}): Promise<{ data: T; status: number }> {
     const controller = new AbortController();
-    const to = setTimeout(() => controller.abort(), opts.timeoutMs ?? this.timeoutMs);
+    const timeout = setTimeout(() => controller.abort(), opts.timeoutMs ?? this.timeoutMs);
     const url = path.startsWith('http') ? path : `${this.baseUrl}${path}`;
     const headers: Record<string, string> = {
       'content-type': 'application/json',
-      // Required headers per confirmed requirements
       'x-application-type': HDR_APPLICATION_TYPE,
       'x-loblaw-tenant-id': HDR_TENANT_ID,
       'accept-language': HDR_ACCEPT_LANGUAGE,
@@ -101,221 +192,270 @@ export class SuperstoreApiDatasource {
       body: opts.body ? JSON.stringify(opts.body) : undefined,
       signal: controller.signal
     } as RequestInit);
-    clearTimeout(to);
+    clearTimeout(timeout);
     const status = res.status;
     if (status === 204) return { data: undefined as unknown as T, status };
     const text = await res.text();
-    let json: any;
+    let json: unknown;
     try {
       json = text ? JSON.parse(text) : {};
     } catch {
       json = {};
     }
     if (!res.ok) {
-      const err: any = new Error(`HTTP ${status}`);
-      (err.status = status), (err.body = json);
+      const err: HttpError = new Error(`HTTP ${status}`);
+      err.status = status;
+      err.body = json;
       throw err;
     }
     return { data: json as T, status };
   }
 
-  async listStores(): Promise<StoreDTO[]> {
-    const apiKey = this.requireKey();
-    try {
-      const { data } = await this.request<any>(`/api/v1/pickup-locations?bannerIds=${this.banner}`, {
-        method: 'GET',
-        headers: { 'X-Apikey': apiKey }
-      });
-      const arr: any[] = Array.isArray(data) ? data : data?.items ?? [];
-      return arr.map((s: any) => ({
-        id: String(s.storeId ?? s.id ?? ''),
-        name: String(s.name ?? ''),
-        address: {
-          line1: s.address?.line1 ?? s.address1 ?? s.address ?? '',
-          line2: s.address?.line2 ?? undefined,
-          town: s.address?.city ?? s.city ?? undefined,
-          region: s.address?.province ?? s.province ?? s.region ?? undefined,
-          postalCode: s.address?.postalCode ?? s.postalCode ?? undefined,
-          country: s.address?.country ?? 'CA'
-        },
-        geo: s.geoPoint ? { lat: Number(s.geoPoint?.latitude), lon: Number(s.geoPoint?.longitude) } : null,
-        pickupType: s.pickupType ?? 'STORE',
-        openNow: typeof s.openNow === 'boolean' ? s.openNow : null
-      } as StoreDTO));
-    } catch (e: any) {
-      if (e?.status === 401 || e?.status === 403) return [];
-      throw e;
+  /**
+   * Extract HTTP status from an error value thrown by fetch.
+   * @param error Arbitrary thrown error value.
+   * @returns Numeric HTTP status when available.
+   */
+  private extractStatus(error: unknown): number | undefined {
+    if (isRecord(error) && typeof error.status === 'number') {
+      return error.status;
+    }
+    if ((error as HttpError | undefined)?.status && typeof (error as HttpError).status === 'number') {
+      return (error as HttpError).status;
+    }
+    return undefined;
+  }
+
+  /**
+   * Convert upstream 401/403 errors into typed authentication errors.
+   * @param error Arbitrary error thrown by a request.
+   * @throws {SuperstoreAuthError} When the upstream indicates unauthorized/forbidden.
+   */
+  private throwIfUnauthorized(error: unknown): void {
+    const status = this.extractStatus(error);
+    if (status !== undefined && (status === 401 || status === 403)) {
+      throw SuperstoreAuthError.invalid(status);
     }
   }
 
   /**
-   * Perform a product search with minimal required payload/headers.
-   * - Enforces offerType 'OG', banner 'superstore', accept-language 'en', x-application-type 'Web', x-loblaw-tenant-id 'ONLINE_GROCERIES'.
-   * - Uses random UUID for cartId on each request.
-   * - pagination.from is computed as 1-based when page/pageSize provided.
+   * Retrieve all Superstore pickup locations.
+   * @returns Promise resolving with normalized store DTOs.
+   */
+  async listStores(): Promise<StoreDTO[]> {
+    const apiKey = this.requireKey();
+    try {
+      const { data } = await this.request<unknown>(`/api/v1/pickup-locations?bannerIds=${this.banner}`, {
+        method: 'GET',
+        headers: { 'x-apikey': apiKey }
+      });
+      return toRecordArray(data).map(store => this.toStore(store));
+    } catch (error) {
+      this.throwIfUnauthorized(error);
+      throw error;
+    }
+  }
+
+  /**
+   * Execute a product search scoped to a specific store.
+   * @param req Search inputs including term, pagination, and store scope.
+   * @returns Promise resolving with normalized product DTOs.
    */
   async searchProducts(req: SearchRequestDTO): Promise<ProductDTO[]> {
     const apiKey = this.requireKey();
-    const today = this.ddmmyyyy(new Date());
     const cartId = randomUUID();
     const from = 1 + Math.max(0, (req.page - 1) * Math.max(1, req.pageSize));
-
     const body: SuperstoreSearchPayload = {
       cart: { cartId },
       fulfillmentInfo: {
         storeId: req.storeId,
-        offerType: 'OG',
-        // optional/honored by server; uncomment to include
-        // pickupType: 'STORE',
-        // date: today,
-        // timeSlot: null
+        offerType: 'OG'
       },
       listingInfo: { pagination: { from } },
       banner: this.banner,
       searchRelatedInfo: { term: req.term }
     };
     try {
-      const { data } = await this.request<any>(`/api/v2/products/search`, {
+      const { data } = await this.request<unknown>(`/api/v2/products/search`, {
         method: 'POST',
         headers: { 'x-apikey': apiKey },
         body
       });
       const tiles = this.extractProductTiles(data);
-      return tiles.map((t: any) => ({
-        code: String(t.productId ?? t.code ?? ''),
-        name: String(t.title ?? t.name ?? ''),
-        brand: t.brand ?? null,
-        description: t.description ?? null,
-        image: t.productImage?.url ?? t.image ?? null,
-        packageSize: t.packageSize ?? null,
-        pricing: {
-          current: Number(t.pricing?.price?.value ?? t.pricing?.current ?? 0),
-          regular: t.pricing?.wasPrice?.value ?? t.pricing?.regular ?? null
-        }
-      } as ProductDTO));
-    } catch (e: any) {
-      if (e?.status === 401 || e?.status === 403) return [];
-      if (e?.status === 429) return [];
-      throw e;
+      return tiles.map(tile => this.toProductSummary(tile));
+    } catch (error) {
+      const status = this.extractStatus(error);
+      if (status === 429) return [];
+      this.throwIfUnauthorized(error);
+      throw error;
     }
   }
 
+  /**
+   * Load detailed product information for a given store/product pair.
+   * @param productId Chain-wide product identifier.
+   * @param storeId Store scope for the lookup.
+   * @returns Promise resolving with a normalized product DTO or null when not carried.
+   */
   async getProductDetails(productId: string, storeId: string): Promise<ProductDTO | null> {
     const apiKey = this.requireKey();
-    const date = this.ddmmyyyy(new Date());
     const qs = new URLSearchParams({
       lang: 'en',
-      date,
+      date: this.ddmmyyyy(new Date()),
       pickupType: 'STORE',
       storeId,
       banner: this.banner
     });
     try {
-      const { data, status } = await this.request<any>(`/api/v1/products/${encodeURIComponent(productId)}?${qs.toString()}`, {
-        method: 'GET',
-        headers: { 'x-apikey': apiKey, 'accept-language': 'en' }
-      });
+      const { data, status } = await this.request<unknown>(
+        `/api/v1/products/${encodeURIComponent(productId)}?${qs.toString()}`,
+        {
+          method: 'GET',
+          headers: { 'x-apikey': apiKey, 'accept-language': 'en' }
+        }
+      );
       if (status === 204 || !data) return null;
-      const dto: ProductDTO = {
-        code: String(data.code ?? productId),
-        name: String(data.name ?? data.title ?? ''),
-        brand: data.brand ?? null,
-        description: data.description ?? null,
-        image: this.pickPrimaryImage(data),
-        packageSize: data.packageSize ?? null,
-        uom: data.uom ?? null,
-        pricing: this.normalizePricing(data),
-        nutrition: data.nutritionFacts ?? null,
-        breadcrumbs: Array.isArray(data.breadcrumbs) ? data.breadcrumbs : [],
-        variants: Array.isArray(data.variants)
-          ? data.variants.map((v: any) => ({ code: String(v.code), name: v.name }))
-          : null
-      };
-      return dto;
-    } catch (e: any) {
-      if (e?.status === 404) return null;
-      if (e?.status === 401 || e?.status === 403) return null;
-      throw e;
+      return this.toProductDetail(data, productId);
+    } catch (error) {
+      const status = this.extractStatus(error);
+      if (status === 404) return null;
+      this.throwIfUnauthorized(error);
+      throw error;
     }
   }
 
-  private browserHeaders(): Record<string, string> {
+  private toStore(record: Record<string, unknown>): StoreDTO {
+    const addressRecord = isRecord(record.address) ? record.address : {};
+    const geoRecord = isRecord(record.geoPoint) ? record.geoPoint : null;
     return {
-      accept: '*/*',
-      'accept-language': 'en',
-      'business-user-agent': 'PCXWEB',
-      origin: 'https://www.realcanadiansuperstore.ca',
-      origin_session_header: 'B',
-      referer: 'https://www.realcanadiansuperstore.ca/',
-      'sec-fetch-dest': 'empty',
-      'sec-fetch-mode': 'cors',
-      'sec-fetch-site': 'cross-site',
-      'sec-gpc': '1',
-      'user-agent':
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
-      'is-helios-account': 'false',
-      'is-iceberg-enabled': 'true',
-      'sec-ch-ua': '"Chromium";v="140", "Not=A?Brand";v="24", "Brave";v="140"',
-      'sec-ch-ua-mobile': '?0',
-      'sec-ch-ua-platform': '"Windows"',
-      'x-application-type': 'Web',
-      'x-channel': 'web',
-      'x-loblaw-tenant-id': 'ONLINE_GROCERIES',
-      'x-preview': 'false'
+      id: toOptionalString(record.storeId ?? record.id) ?? '',
+      name: toOptionalString(record.name) ?? '',
+      address: {
+        line1: toOptionalString(addressRecord.line1 ?? record.address1 ?? record.address) ?? '',
+        line2: toOptionalString(addressRecord.line2 ?? record.address2) ?? undefined,
+        town: toOptionalString(addressRecord.city ?? record.city) ?? undefined,
+        region: toOptionalString(addressRecord.province ?? record.province ?? record.region) ?? undefined,
+        postalCode: toOptionalString(addressRecord.postalCode ?? record.postalCode) ?? undefined,
+        country: toOptionalString(addressRecord.country) ?? 'CA'
+      },
+      geo: toGeo(geoRecord),
+      pickupType: toOptionalString(record.pickupType) ?? 'STORE',
+      openNow: toBooleanOrNull(record.openNow)
     };
   }
 
-  private extractProductTiles(payload: any): any[] {
-    // Try common path
-    const comps = payload?.layout?.mainContentCollection?.components;
-    if (Array.isArray(comps)) {
-      for (const c of comps) {
-        const tiles = c?.data?.productTiles;
-        if (Array.isArray(tiles)) return tiles;
+  private toProductSummary(record: Record<string, unknown>): ProductDTO {
+    const pricingRecord = isRecord(record.pricing) ? record.pricing : {};
+    const priceNode = isRecord(pricingRecord.price) ? pricingRecord.price : {};
+    const wasNode = isRecord(pricingRecord.wasPrice) ? pricingRecord.wasPrice : {};
+    const imageRecord = isRecord(record.productImage) ? record.productImage : {};
+    const current =
+      toOptionalNumber(priceNode.value ?? pricingRecord.current ?? record.currentPrice) ?? 0;
+    const regular =
+      toOptionalNumber(wasNode.value ?? pricingRecord.regular ?? record.regularPrice) ?? null;
+    const image =
+      toOptionalString(imageRecord.url) ?? toOptionalString(record.image) ?? toOptionalString(record.primaryImage);
+    return {
+      code: toOptionalString(record.productId ?? record.code) ?? '',
+      name: toOptionalString(record.title ?? record.name) ?? '',
+      brand: toOptionalString(record.brand) ?? undefined,
+      description: toOptionalString(record.description) ?? undefined,
+      image: image ?? null,
+      packageSize: toOptionalString(record.packageSize) ?? null,
+      pricing: {
+        current,
+        regular,
+        unitPrice: undefined
       }
-    }
-    // Fallback: deep search for productTiles array
-    const found: any[] = [];
-    const visit = (obj: any) => {
-      if (!obj || typeof obj !== 'object') return;
-      for (const k of Object.keys(obj)) {
-        const v = obj[k];
-        if (k === 'productTiles' && Array.isArray(v)) {
-          found.push(...v);
-          return;
-        }
-        if (typeof v === 'object') visit(v);
+    };
+  }
+
+  private extractProductTiles(payload: unknown): Record<string, unknown>[] {
+    const found: Record<string, unknown>[] = [];
+    const visit = (value: unknown): void => {
+      if (Array.isArray(value)) {
+        value.forEach(visit);
+        return;
+      }
+      if (!isRecord(value)) return;
+      if (Array.isArray(value.productTiles)) {
+        found.push(...toRecordArray(value.productTiles));
+      }
+      for (const child of Object.values(value)) {
+        visit(child);
       }
     };
     visit(payload);
     return found;
   }
 
-  private ddmmyyyy(d: Date): string {
-    const dd = String(d.getDate()).padStart(2, '0');
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const yyyy = d.getFullYear();
-    return `${dd}${mm}${yyyy}`;
-    }
-
-  private pickPrimaryImage(data: any): string | null {
-    const assets = data.imageAssets ?? data.images ?? [];
-    if (Array.isArray(assets) && assets.length) {
-      // Choose the first non-null URL; could enhance to pick largest
-      const a = assets.find((x: any) => x?.url) ?? assets[0];
-      return a?.url ?? null;
-    }
-    return data.image ?? null;
+  private toProductDetail(value: unknown, fallbackId: string): ProductDTO {
+    const record = isRecord(value) ? value : {};
+    return {
+      code: toOptionalString(record.code) ?? fallbackId,
+      name: toOptionalString(record.name ?? record.title) ?? '',
+      brand: toOptionalString(record.brand) ?? undefined,
+      description: toOptionalString(record.description) ?? undefined,
+      image: this.pickPrimaryImage(record),
+      packageSize: toOptionalString(record.packageSize) ?? null,
+      uom: toOptionalString(record.uom) ?? null,
+      pricing: this.normalizePricing(record),
+      nutrition: record.nutritionFacts ?? null,
+      breadcrumbs: coerceBreadcrumbs(record.breadcrumbs),
+      variants: coerceVariants(record.variants)
+    };
   }
 
-  private normalizePricing(data: any): ProductDTO['pricing'] {
-    const offer = Array.isArray(data.offers) ? data.offers[0] : undefined;
-    const current = offer?.price?.value ?? data.pricing?.current ?? 0;
-    const regular = offer?.wasPrice?.value ?? data.pricing?.regular ?? null;
-    const unit = data.comparisonPrices?.[0] ?? data.unitPrice ?? null;
-    const unitPrice = unit
-      ? { value: Number(unit.value ?? unit.price ?? 0), unit: unit.unit ?? unit.uom ?? '', perQuantity: Number(unit.perQuantity ?? 1) }
+  private pickPrimaryImage(record: Record<string, unknown>): string | null {
+    const assets = toRecordArray(record.imageAssets ?? record.images);
+    if (assets.length > 0) {
+      const withUrl = assets.find(item => toOptionalString(item.url));
+      if (withUrl) {
+        return toOptionalString(withUrl.url);
+      }
+      const first = assets[0];
+      return toOptionalString(first.url);
+    }
+    return toOptionalString(record.image);
+  }
+
+  private normalizePricing(record: Record<string, unknown>): ProductDTO['pricing'] {
+    const offers = Array.isArray(record.offers) ? record.offers.filter(isRecord) : [];
+    const offer = (offers[0] ?? null) as Record<string, unknown> | null;
+    const offerPrice = offer && isRecord(offer.price) ? offer.price : undefined;
+    const offerWas = offer && isRecord(offer.wasPrice) ? offer.wasPrice : undefined;
+    const dtoPricing = isRecord(record.pricing) ? record.pricing : {};
+    const current = toOptionalNumber(offerPrice?.value ?? dtoPricing.current) ?? 0;
+    const regular = toOptionalNumber(offerWas?.value ?? dtoPricing.regular) ?? null;
+    const comparisonPrices = Array.isArray(record.comparisonPrices)
+      ? record.comparisonPrices.filter(isRecord)
+      : [];
+    const unit = (comparisonPrices[0] ?? null) as Record<string, unknown> | null;
+    const unitValue = unit ? toOptionalNumber((unit as Record<string, unknown>).value ?? (unit as Record<string, unknown>).price) : null;
+    const unitPrice = unit && unitValue !== null
+      ? {
+          value: unitValue,
+          unit: toOptionalString((unit as Record<string, unknown>).unit ?? (unit as Record<string, unknown>).uom) ?? '',
+          perQuantity: toOptionalNumber((unit as Record<string, unknown>).perQuantity) ?? 1
+        }
       : null;
-    return { current: Number(current), regular: regular ?? null, unitPrice };
+    return { current, regular, unitPrice };
+  }
+
+  private ddmmyyyy(date: Date): string {
+    const dd = String(date.getDate()).padStart(2, '0');
+    const mm = String(date.getMonth() + 1).padStart(2, '0');
+    const yyyy = date.getFullYear();
+    return `${dd}${mm}${yyyy}`;
   }
 }
+
+
+
+
+
+
+
+
+
+

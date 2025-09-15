@@ -7,6 +7,16 @@ export type ClientDeps = {
   superstore?: SuperstoreConfig;
 };
 
+/**
+ * Construct a `SupermarketRepository` using either an injected implementation or
+ * a real Superstore-backed datasource configured from provided overrides and/or
+ * environment variables.
+ *
+ * Env support:
+ * - `SUPERSTORE_API_KEY` (required for live calls)
+ * - `SUPERSTORE_BASE_URL` (optional)
+ * - `SUPERSTORE_TIMEOUT_MS` (optional)
+ */
 export const createRepository = (deps: ClientDeps = {}): SupermarketRepository => {
   if (deps.repository) return deps.repository;
   const cfg: SuperstoreConfig = {
@@ -15,11 +25,6 @@ export const createRepository = (deps: ClientDeps = {}): SupermarketRepository =
     banner: deps.superstore?.banner ?? 'superstore',
     timeoutMs: deps.superstore?.timeoutMs ?? (process.env.SUPERSTORE_TIMEOUT_MS ? Number(process.env.SUPERSTORE_TIMEOUT_MS) : undefined)
   };
-  if (!cfg.apiKey || cfg.apiKey.trim().length === 0) {
-    throw new Error(
-      'SUPERSTORE_API_KEY is required to create a Superstore repository. Tests and runtime calls hit the live API.'
-    );
-  }
   const ds = new SuperstoreApiDatasource(cfg);
   return new SuperstoreRepository(ds);
 };

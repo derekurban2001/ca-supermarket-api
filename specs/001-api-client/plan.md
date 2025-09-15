@@ -59,7 +59,7 @@ GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.
 - Configuration in `src/config/` (env, DI, providers)
 
 **Packaging & Tooling**
-- `package.json` is private ("private": true)
+- `package.json` configured for public publishing (`private: false`, `publishConfig.access: public`)
 - ESM exports map defined for public API
 - `tsconfig` path aliases set (@core/*, @features/*, @config/*)
 - ESLint rules enforce naming; JSDoc plugin enabled for exported APIs
@@ -73,7 +73,7 @@ GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.
 - Structured logging included; error context sufficient
 
 **Versioning**
-- SemVer set in `package.json` (0.x.y until stable)
+- SemVer in `package.json` (1.x, follow SemVer for breaking changes)
 - Changelog updated for notable changes; breaking changes documented
 
 ## Project Structure
@@ -171,6 +171,11 @@ Fill ONLY if Constitution Check has violations that must be justified
 
 No deviations required; architecture remains within constitution guardrails.
 
+Polish follow-ups:
+- Add unit tests for SuperstoreAuthError helper paths in datasource.
+- Consider exposing machine-readable error codes on public results.
+- Evaluate retry/backoff for transient 5xx responses in a minor release.
+
 ## Progress Tracking
 
 Phase Status:
@@ -178,8 +183,8 @@ Phase Status:
 - [x] Phase 1: Design complete (/plan command)
 - [x] Phase 2: Task planning complete (/plan command - describe approach only)
 - [x] Phase 3: Tasks generated (/tasks command)
-- [ ] Phase 4: Implementation complete
-- [ ] Phase 5: Validation passed
+ - [x] Phase 4: Implementation complete
+ - [x] Phase 5: Validation passed
 
 Gate Status:
 - [x] Initial Constitution Check: PASS

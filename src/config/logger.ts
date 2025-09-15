@@ -1,30 +1,62 @@
-/* Simple logger placeholder with redaction */
+﻿/**
+ * Supported log levels for the simple console logger.
+ */
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
+/**
+ * Minimal console-backed logger with header redaction support.
+ */
 export class Logger {
-  constructor(private level: LogLevel = 'info') {}
-  private redactHeaders(obj: unknown): unknown {
-    try {
-      const clone = JSON.parse(JSON.stringify(obj));
-      if (clone && typeof clone === 'object' && 'headers' in (clone as any)) {
-        (clone as any).headers = '[redacted]';
-      }
-      return clone;
-    } catch {
-      return obj;
+  /**
+   * @param level Minimum level to emit before logging.
+   */
+  constructor(private readonly level: LogLevel = 'info') {}
+
+  private sanitize(meta: unknown): unknown {
+    if (meta === null || typeof meta !== 'object') return meta;
+    if (Array.isArray(meta)) return meta.map(entry => this.sanitize(entry));
+    const clone: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(meta as Record<string, unknown>)) {
+      clone[key] = key.toLowerCase() === 'headers' ? '[redacted]' : this.sanitize(value);
+    }
+    return clone;
+  }
+
+  /**
+   * Emit a debug log when the logger is configured for debug output.
+   * @param message Log message to emit.
+   * @param meta Optional metadata payload.
+   */
+  debug(message: string, meta?: unknown): void {
+    if (this.level === 'debug') console.debug(message, this.sanitize(meta));
+  }
+
+  /**
+   * Emit an informational log when the level allows it.
+   * @param message Log message to emit.
+   * @param meta Optional metadata payload.
+   */
+  info(message: string, meta?: unknown): void {
+    if (this.level === 'debug' || this.level === 'info') {
+      console.info(message, this.sanitize(meta));
     }
   }
-  debug(msg: string, meta?: unknown) {
-    if (this.level === 'debug') console.debug(msg, this.redactHeaders(meta));
+
+  /**
+   * Emit a warning log.
+   * @param message Log message to emit.
+   * @param meta Optional metadata payload.
+   */
+  warn(message: string, meta?: unknown): void {
+    console.warn(message, this.sanitize(meta));
   }
-  info(msg: string, meta?: unknown) {
-    if (['debug', 'info'].includes(this.level)) console.info(msg, this.redactHeaders(meta));
-  }
-  warn(msg: string, meta?: unknown) {
-    console.warn(msg, this.redactHeaders(meta));
-  }
-  error(msg: string, meta?: unknown) {
-    console.error(msg, this.redactHeaders(meta));
+
+  /**
+   * Emit an error log.
+   * @param message Log message to emit.
+   * @param meta Optional metadata payload.
+   */
+  error(message: string, meta?: unknown): void {
+    console.error(message, this.sanitize(meta));
   }
 }
-

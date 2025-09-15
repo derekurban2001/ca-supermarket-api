@@ -1,0 +1,59 @@
+*** Begin Patch
+*** Update File: src/config/env.ts
+@@
+-export type ClientConfig = {
+-  apiKey?: string;
+-  banner?: 'superstore';
+-  baseUrl?: string;
+-};
++import type { SuperstoreConfig } from '@features/catalog/datasources/SuperstoreApiDatasource';
++
++/**
++ * Environment-backed configuration for the client.
++ */
++export type ClientConfig = {
++  /** Configuration for the Superstore datasource. */
++  superstore: SuperstoreConfig;
++};
++
++/**
++ * Parse a number from an environment variable value.
++ * Returns undefined when the value is not a finite number.
++ */
++const parseNumber = (value: unknown): number | undefined => {
++  if (value === undefined || value === null) return undefined;
++  const n = Number(String(value));
++  return Number.isFinite(n) ? n : undefined;
++};
++
++/**
++ * Load configuration from environment variables.
++ *
++ * Supported variables:
++ * - SUPERSTORE_API_KEY   (string, required at runtime for live calls)
++ * - SUPERSTORE_BASE_URL  (string, defaults to upstream public base URL)
++ * - SUPERSTORE_BANNER    (string, only 'superstore' is accepted; defaults to 'superstore')
++ * - SUPERSTORE_TIMEOUT_MS(number, request timeout; defaults to 10000)
++ *
++ * Note: This function does not throw on missing API key. Enforcement occurs
++ * in the container/datasource so unit tests can run without credentials.
++ */
++export const loadEnvConfig = (env: NodeJS.ProcessEnv = process.env): ClientConfig => {
++  const banner = (env.SUPERSTORE_BANNER?.toLowerCase() as 'superstore' | undefined) ?? 'superstore';
++  const cfg: ClientConfig = {
++    superstore: {
++      apiKey: env.SUPERSTORE_API_KEY,
++      baseUrl: env.SUPERSTORE_BASE_URL,
++      banner,
++      timeoutMs: parseNumber(env.SUPERSTORE_TIMEOUT_MS)
++    }
++  };
++  return cfg;
++};
++
++/**
++ * Convenience accessor returning only the Superstore config block.
++ */
++export const loadSuperstoreConfig = (env: NodeJS.ProcessEnv = process.env): SuperstoreConfig =>
++  loadEnvConfig(env).superstore;
+*** End Patch
