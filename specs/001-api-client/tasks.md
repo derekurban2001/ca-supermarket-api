@@ -50,7 +50,7 @@ Contract tests (from specs/001-api-client/contracts/client-api.md)
 
 Integration tests (from quickstart.md scenarios)
 - [ ] T007 [P] Quickstart flow test in `tests/integration/catalog/quickstart.spec.ts`
-  - Configure DI with a fake datasource (no network) and verify: listStores → searchProducts → getProductDetails
+  - Exercise the live API (requires `SUPERSTORE_API_KEY`) and verify: listStores → searchProducts → getProductDetails
 
 Use-case and mapper unit tests
 - [ ] T008 [P] Use-case unit test: `searchProducts` in `tests/unit/features/catalog/use-cases/searchProducts.spec.ts` (valid + error path: missing storeId)
@@ -122,10 +122,10 @@ Task: tests/unit/features/catalog/mappers/storeMapper.spec.ts
 
 ## Validation Checklist
 
-- [ ] All contracts have corresponding tests
-- [ ] All entities have model tasks
-- [ ] All tests come before implementation
-- [ ] Parallel tasks truly independent
-- [ ] Each task specifies exact file path
-- [ ] No task modifies same file as another [P] task
+- [x] All contracts have corresponding tests
+- [x] All entities have model tasks
+- [x] All tests come before implementation
+- [x] Parallel tasks truly independent
+- [x] Each task specifies exact file path
+- [x] No task modifies same file as another [P] task
 

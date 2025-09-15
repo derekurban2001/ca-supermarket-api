@@ -82,4 +82,8 @@ Nutrition
 - Prices are expressed in CAD; all pricing fields provided upstream should be returned.
 - Product availability is store-scoped; not all products are available at all stores.
 - Credentials/keys are provided by the integrator and not embedded.
+- A `createClient({ superstore?, repository? })` factory is provided to supply
+  configuration/dependencies; the named functions above call this factory with
+  default environment-driven settings.
+- Missing credentials (e.g., unset `SUPERSTORE_API_KEY`) surface as `{ ok: false, error: { type: 'unauthorized', ... } }`; no offline fallbacks are provided.
 

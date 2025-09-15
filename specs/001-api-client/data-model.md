@@ -43,7 +43,7 @@ This document describes normalized domain entities and relationships for the cli
 - openNow: boolean | null
 
 ## Notes
-- Prices denominated in CAD across all outputs.
+- Prices denominated in CAD across all outputs and exclude tax (callers handle taxation separately).
 - Availability and pricing are store-scoped.
 - Raw upstream fields not included here are considered internal and may change without notice.
 

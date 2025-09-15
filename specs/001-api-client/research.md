@@ -21,6 +21,7 @@ This document captures decisions and unknowns informing the plan and contracts f
 - Store discovery: List all Superstore locations and return essential fields (`storeId`, `name`, `address`, `geo`, `pickupType`, `openNow`). No proximity filtering in v1.
 - Caching & freshness (library concern): Allow consumers to configure caching; recommended defaults may be provided in implementation. Freshness expectations in spec remain business-level.
 - Logging & observability (library concern): Provide structured logging without exposing sensitive headers.
+- Testing approach: Contract and integration tests execute against the live Superstore API; no fake datasources are permitted. Missing credentials must surface as clear errors rather than silent fallbacks.
 
 ## Confirmed Search Requirements
 
@@ -39,12 +40,12 @@ This document captures decisions and unknowns informing the plan and contracts f
 - Payload (optional): `fulfillmentInfo.date`, `pickupType`, `timeSlot`, `listingInfo.*`, `userData`, `device`, `searchRelatedInfo.options`
 - Constraints: if including pagination, `pagination.from >= 1`; `offerType` must be `OG`.
 
-## Open Questions
+## Clarifications
 
-- API key rotation and header name variability (is `X-Apikey` stable?): [NEEDS CLARIFICATION]
-- Minimum viable search payload that reliably returns results (term + store?): [NEEDS CLARIFICATION]
-- Taxes and pricing: confirm include/exclude tax in prices presented to callers: [NEEDS CLARIFICATION]
-- Product id scope: assumed chain-wide; confirm behavior across stores: [NEEDS CLARIFICATION]
+- API key rotation and header name variability: treat all request headers and payload requirements as unstable; surface configurability so callers can adjust when upstream changes.
+- Minimum viable search payload: confirmed as documented in README (`banner`, `cart.cartId`, `fulfillmentInfo.storeId`, `fulfillmentInfo.offerType`, `searchRelatedInfo.term`).
+- Taxes and pricing: upstream prices exclude tax; communicate this explicitly in contracts and documentation.
+- Product id scope: identifiers are chain-wide, but availability is store-scoped; handle store-level not-found responses accordingly.
 
 ## Reference Shapes (observed)
 
