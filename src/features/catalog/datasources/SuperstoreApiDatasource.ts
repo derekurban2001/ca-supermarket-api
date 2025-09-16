@@ -1,6 +1,8 @@
 import type { SearchRequestDTO } from '../dtos/SearchDTO';
 import type { ProductDTO } from '../dtos/ProductDTO';
 import type { StoreDTO } from '../dtos/StoreDTO';
+import { ProductDTOSchema } from '../dtos/schemas/ProductDTOSchema';
+import { StoreDTOSchema } from '../dtos/schemas/StoreDTOSchema';
 import { randomUUID } from 'node:crypto';
 
 /**
@@ -249,7 +251,7 @@ export class SuperstoreApiDatasource {
         method: 'GET',
         headers: { 'x-apikey': apiKey }
       });
-      return toRecordArray(data).map(store => this.toStore(store));
+      return toRecordArray(data).map(store => StoreDTOSchema.parse(this.toStore(store)));
     } catch (error) {
       this.throwIfUnauthorized(error);
       throw error;
@@ -282,7 +284,7 @@ export class SuperstoreApiDatasource {
         body
       });
       const tiles = this.extractProductTiles(data);
-      return tiles.map(tile => this.toProductSummary(tile));
+      return tiles.map(tile => ProductDTOSchema.parse(this.toProductSummary(tile)));
     } catch (error) {
       const status = this.extractStatus(error);
       if (status === 429) return [];
@@ -315,7 +317,7 @@ export class SuperstoreApiDatasource {
         }
       );
       if (status === 204 || !data) return null;
-      return this.toProductDetail(data, productId);
+      return ProductDTOSchema.parse(this.toProductDetail(data, productId));
     } catch (error) {
       const status = this.extractStatus(error);
       if (status === 404) return null;
