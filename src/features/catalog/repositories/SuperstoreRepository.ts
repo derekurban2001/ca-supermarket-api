@@ -5,6 +5,8 @@ import type { StoreSummary } from '@core/entities/Store';
 import { SuperstoreApiDatasource, SuperstoreAuthError } from '../datasources/SuperstoreApiDatasource';
 import { toProductDetail, toProductSummary } from '../mappers/productMapper';
 import { toStoreSummary } from '../mappers/storeMapper';
+import { ProductDetailSchema, ProductSummarySchema, SearchProductsPageSchema } from '@core/schemas/ProductSchemas';
+import { StoreSummarySchema } from '@core/schemas/StoreSchemas';
 
 /**
  * Superstore-specific repository implementing the supermarket port.
@@ -22,7 +24,8 @@ export class SuperstoreRepository implements SupermarketRepository {
   async listStores(): Promise<Result<{ items: StoreSummary[] }>> {
     try {
       const stores = await this.ds.listStores();
-      return { ok: true, value: { items: stores.map(toStoreSummary) } };
+      const items = stores.map(toStoreSummary).map(item => StoreSummarySchema.parse(item));
+      return { ok: true, value: { items } };
     } catch (err) {
       if (err instanceof SuperstoreAuthError) {
         return {
@@ -55,10 +58,9 @@ export class SuperstoreRepository implements SupermarketRepository {
     }
     try {
       const tiles = await this.ds.searchProducts({ term: query, storeId, page, pageSize });
-      return {
-        ok: true,
-        value: { items: tiles.map(toProductSummary), page, pageSize, total: tiles.length }
-      } as const;
+      const items = tiles.map(toProductSummary).map(item => ProductSummarySchema.parse(item));
+      const pageObj = SearchProductsPageSchema.parse({ items, page, pageSize, total: tiles.length });
+      return { ok: true, value: pageObj } as const;
     } catch (err) {
       if (err instanceof SuperstoreAuthError) {
         return {
@@ -82,7 +84,7 @@ export class SuperstoreRepository implements SupermarketRepository {
     try {
       const dto = await this.ds.getProductDetails(productId, storeId);
       if (!dto) return { ok: false, error: { type: 'not-found', message: 'Product not found at store' } } as const;
-      return { ok: true, value: toProductDetail(dto) } as const;
+      return { ok: true, value: ProductDetailSchema.parse(toProductDetail(dto)) } as const;
     } catch (err) {
       if (err instanceof SuperstoreAuthError) {
         return {

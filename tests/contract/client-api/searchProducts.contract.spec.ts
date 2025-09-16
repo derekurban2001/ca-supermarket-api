@@ -1,4 +1,5 @@
 import { createClient, listStores, searchProducts } from '../../../src/index';
+import type { ProductSummary } from '@core/entities/Product';
 import type { SupermarketRepository } from '@core/ports/SupermarketRepository';
 
 describe('Contract: searchProducts', () => {
@@ -28,18 +29,12 @@ describe('Contract: searchProducts', () => {
     expect(res.value.pageSize).toBe(10);
     expect(res.value).toHaveProperty('total');
 
-    const first = res.value.items[0];
+    const first: ProductSummary | undefined = res.value.items[0];
     if (first) {
-      expect(first).toEqual(
-        expect.objectContaining({
-          id: expect.any(String),
-          name: expect.any(String),
-          price: expect.objectContaining({
-            current: expect.any(Number),
-            currency: 'CAD'
-          })
-        })
-      );
+      expect(typeof first.id).toBe('string');
+      expect(typeof first.name).toBe('string');
+      expect(typeof first.price.current).toBe('number');
+      expect(first.price.currency).toBe('CAD');
     }
   });
 
